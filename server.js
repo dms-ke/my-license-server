@@ -7,7 +7,6 @@ const License = require('./models/License');
 const app = express();
 app.use(bodyParser.json());
 
-// --- CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const MONGO_URI = process.env.MONGO_URI;
@@ -44,26 +43,25 @@ app.post('/api/validate_license', async (req, res) => {
     }
 });
 
-// --- 2. PRETTY DASHBOARD (The Fix) ---
+// --- 2. INTERACTIVE DASHBOARD ---
 app.get('/admin/licenses', async (req, res) => {
     if (req.query.secret !== ADMIN_SECRET) return res.status(401).send("Unauthorized");
     
     try {
         const licenses = await License.find({});
         
-        // Generate HTML Table
         let html = `
         <html>
         <head>
-            <title>License Dashboard</title>
+            <title>License Admin</title>
             <style>
                 body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
                 table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                 th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
                 th { background: #007bff; color: white; }
-                .active { color: green; font-weight: bold; }
-                .revoked { color: red; font-weight: bold; }
-                .locked { font-family: monospace; color: #555; }
+                .btn { padding: 5px 10px; border: none; cursor: pointer; color: white; border-radius: 3px; }
+                .btn-revoke { background: #dc3545; }
+                .btn-unlock { background: #ffc107; color: black; }
             </style>
         </head>
         <body>
@@ -72,39 +70,59 @@ app.get('/admin/licenses', async (req, res) => {
                 <tr>
                     <th>Key</th>
                     <th>Status</th>
-                    <th>Locked To Device</th>
-                    <th>Label</th>
+                    <th>Locked Device</th>
+                    <th>Actions</th>
                 </tr>
         `;
 
         licenses.forEach(lic => {
             html += `<tr>
                 <td style="font-family: monospace">${lic.key}</td>
-                <td class="${lic.isActive ? 'active' : 'revoked'}">${lic.isActive ? 'Active' : 'Revoked'}</td>
-                <td class="locked">${lic.deviceId || '<span style="color:green">-- UNLOCKED --</span>'}</td>
-                <td>${lic.label}</td>
+                <td style="color:${lic.isActive ? 'green' : 'red'}">${lic.isActive ? 'Active' : 'REVOKED'}</td>
+                <td style="font-family: monospace">${lic.deviceId || '<span style="color:green">-- UNLOCKED --</span>'}</td>
+                <td>
+                    ${lic.isActive ? `<button class="btn btn-revoke" onclick="action('${lic.key}', 'revoke')">Revoke</button>` : ''}
+                    ${lic.deviceId ? `<button class="btn btn-unlock" onclick="action('${lic.key}', 'unlock')">Unlock</button>` : ''}
+                </td>
             </tr>`;
         });
 
-        html += `</table></body></html>`;
-        res.send(html); // Send HTML instead of JSON
-
+        html += `
+            </table>
+            <script>
+                async function action(key, type) {
+                    if(!confirm('Are you sure you want to ' + type + ' this key?')) return;
+                    const url = '/admin/' + type + '_license?secret=${ADMIN_SECRET}';
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ key })
+                    });
+                    const data = await res.json();
+                    alert(data.message);
+                    location.reload();
+                }
+            </script>
+        </body>
+        </html>`;
+        
+        res.send(html);
     } catch (e) {
         res.status(500).send("Error loading dashboard");
     }
 });
 
-// --- 3. ADMIN ACTIONS ---
+// --- 3. ACTION ENDPOINTS ---
 app.post('/admin/revoke_license', async (req, res) => {
     if (req.query.secret !== ADMIN_SECRET) return res.status(401).json({status:"fail"});
     await License.updateOne({ key: req.body.key }, { isActive: false });
-    res.json({ status: "success" });
+    res.json({ status: "success", message: "License Revoked. It cannot be used anymore." });
 });
 
 app.post('/admin/unlock_license', async (req, res) => {
     if (req.query.secret !== ADMIN_SECRET) return res.status(401).json({status:"fail"});
     await License.updateOne({ key: req.body.key }, { deviceId: null });
-    res.json({ status: "success" });
+    res.json({ status: "success", message: "License Unlocked. It can now be used on a new machine." });
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
