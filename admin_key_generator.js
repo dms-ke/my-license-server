@@ -1,9 +1,16 @@
-require('dotenv').config(); // Load config
+require('dotenv').config(); 
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const License = require('./models/License'); // Import shared model
+const License = require('./models/License'); 
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/licenseDB';
+// Load Cloud URI from .env
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error("❌ ERROR: MONGO_URI is missing.");
+    console.error("   Make sure you have a .env file with your connection string!");
+    process.exit(1);
+}
 
 function generateKey(segments = 4, segmentLength = 4) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -26,12 +33,12 @@ async function createKeys(count, label) {
 
         for (let i = 0; i < count; i++) {
             const newKey = generateKey();
-            // Using the Shared Model ensures structure matches Server.js
             await new License({
                 key: newKey,
-                label: label || `Batch-${new Date().toISOString()}`
+                label: label || `Batch-${new Date().toISOString()}`,
+                deviceId: null 
             }).save();
-            console.log(`   Created: ${newKey}`);
+            console.log(`   👉 Created: ${newKey}`);
         }
     } catch (e) {
         console.error(e);
