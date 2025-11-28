@@ -3,7 +3,7 @@ const axios = require('axios');
 const readline = require('readline');
 
 // CONFIGURATION
-const SERVER_URL = 'http://localhost:3000/api/validate_license';
+const SERVER_URL = 'https://my-license-server-21f5.onrender.com/api/validate_license';
 
 // 1. Simulate a Hardware ID
 // In a real app, this would be a hash of the motherboard serial, CPU ID, or MAC address.
